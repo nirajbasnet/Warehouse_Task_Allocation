@@ -2,6 +2,7 @@ import threading
 import Gridworld
 import numpy as np
 import copy
+from matplotlib import pyplot as plt
 
 # np.random.normal(mu,sigma,length of weights array)
 task_list = np.array([4, 1, 1, 2])
@@ -24,10 +25,9 @@ class Agent:
         self.input_space = 16  # (pos_x,pos_y,item_x*4,item_y*4,bin_x,bin_y,task*4(of tasklist)
         self.output_space = 4  # len(grid_world.len(items)
         self.hidden_space = 16
-        self.population_size = 2
         self.weights_ih = []  # weights from input to hidden layer
         self.weights_ho = []  # weights from hidden to output layer
-        self.k = 2  # no of policies per agent in population
+        self.k = 15  # no of policies per agent in population
         self.scores = [0 for i in range(self.k)]  # scores for k policies
         self.current_task = 0
         self.current_policy = 0
@@ -142,7 +142,7 @@ class Agent:
 
     def get_best_policy(self):
         print("getting best policy from agent policies")
-        self.current_policy = np.argmax(self.scores)
+        self.current_policy = np.argmax(np.array(self.scores))
         return self.current_policy
 
     def update_score(self, score, policy_index):
@@ -151,7 +151,7 @@ class Agent:
 
     def reset_scores(self):
         print("resetting scores")
-        self.scores = []
+        self.scores = [0 for i in range(self.k)]
 
     def get_next_gen(self):
         print("selecting best k from 2k policies")
@@ -167,10 +167,11 @@ class CCEA:
         x = 0
         self.gridWorld = grid_world
         self.team = []
-        self.N_pop = 2  # number of populations
+        self.N_pop = 4  # number of  populations
         self.agents = []
-        self.iteration_count = 1
-        self.generations = 1
+        self.iteration_count = 100
+        self.generations = 500
+        self.hof_generations=20
 
     def get_random_tasklist(self):
         print("getting random task list for simulations")
@@ -197,67 +198,80 @@ class CCEA:
         total_sim_time = 0
         absent = None
         T_all = np.array([0 for i in range(len(self.agents))])
-        print(team)
-        print("original task list",task_list)
+        # print("original task list",task_list)
+        exclude_agent = False
         for index, agent in enumerate(self.agents):
             if team[index] != -5:
                 agent.select_task()
-                print("agent ",index," current task=",agent.current_task)
+                # print("agent ", index, " current task=", agent.current_task)
                 t_single = agent.get_time_steps(agent.current_task)
                 T_all[index] = t_single
             else:
                 absent = index
-            print("task list", task_list,T_all)
+                exclude_agent = True
+
+            # print("task list", task_list,T_all)
         while T_all.sum() > 0:
             min_time_idx = np.argmin(T_all)
             count = 0
-            while T_all[min_time_idx] == 0 and is_empty_tasklist():
-                print("task list empty")
+            while T_all[min_time_idx] == 0 and (is_empty_tasklist() or exclude_agent):
+                # print("task list empty")
                 count += 1
-                smallest=float('inf')
                 if count == len(T_all):
                     break
+                smallest_value = float('inf')
+                smallest_index = float('inf')
                 for i in range(len(T_all)):
-                    if i != min_time_idx and T_all[i]<smallest:
-                        smallest = i
-                min_time_idx = smallest
-            print("min_time ",min_time_idx," ",T_all[min_time_idx])
+                    if T_all[i] < smallest_value and T_all[i] != 0:
+                        smallest_value = T_all[i]
+                        smallest_index = i
+                min_time_idx = smallest_index
+            # print("min_time ",min_time_idx," ",T_all[min_time_idx])
             total_sim_time += T_all[min_time_idx]
             agent_same_time = []
             for index, agent in enumerate(self.agents):
                 if index == min_time_idx and index != absent:
                     agent.update_states(agent.current_task)
-                    print("agent ",index," pos= ",agent.pos)
+                    # print("agent ",index," pos= ",agent.pos)
                     if agent.select_task() != -5:
-                        print("agent ", index, " current task=", agent.current_task)
+                        # print("agent ", index, " current task=", agent.current_task)
                         agent_same_time.append(index)
             # T_all = T_all - T_all[min_time_idx]
             minimum_time = T_all[min_time_idx]
             for k in range(len(T_all)):
                 if T_all[k] != 0:
                     T_all[k] = T_all[k] - minimum_time
-                    print(T_all[k])
-            print("subract ",T_all)
+                    # print(T_all[k])
+            # print("subract ",T_all)
             for i in agent_same_time:
                 T_all[i] += self.agents[i].get_time_steps(self.agents[i].current_task)
-            print(task_list,T_all)
-            x = input("enter")
-        return total_sim_time
+            # print(task_list,T_all)
+            # x=input("loop")
+
+        return 200-total_sim_time
 
     def run_evolutions(self):
         print("running evolution")
         analysis = []
-        self.init_all_agent_populations(2)  # size of the population
+        gen=[]
+        self.init_all_agent_populations(self.N_pop)  # size of the population
         for i in range(self.generations):
+            gen.append(i)
             for agent in self.agents:
                 agent.mutate_policies()
             self.stage1()
             self.build_hof_diff()
             global_reward = self.evolution()
+            # print("global reward",global_reward)
+            # x = input("score")
             analysis.append(global_reward)
             self.gridWorld.reset()
             for agent in self.agents:
                 agent.reset_scores()
+        print(analysis)
+        plt.plot(gen,analysis)
+        plt.show()
+
 
         # computation += stage1()
         # computation1 +=build_hof_diff()
@@ -284,16 +298,20 @@ class CCEA:
             for agent in self.agents:
                 team.append(agent.get_random_policy())
             score = self.run_sim(team)
-            print("score stage1: ", score)
+            # print("score stage1: ", score)
+            # x = input("sim completed")
             for agent in self.agents:
                 agent.update_score(score, agent.current_policy)
+                # print(agent.scores)
+        # x = input("stage 1 finish")
 
     def build_hof_diff(self):
-        print("building hof_diff model")
-        generations_count = 100
-        for i in range(generations_count):
-            print("running generation ", i)
+        global task_list
+        # print("building hof_diff model")
+        for i in range(self.hof_generations):
+            # print("hof_dof running generation ", i)
             task_list = self.get_random_tasklist()
+            temp_task_list = copy.deepcopy(task_list)
             for index, agent in enumerate(self.agents):
                 team = []
                 rand_policy = agent.get_random_policy()
@@ -303,11 +321,18 @@ class CCEA:
                         best_policy = other_agent.get_best_policy()
                         team.append(best_policy)
                 score_with_a = self.run_sim(team)
+                # print("score_with_a=",score_with_a)
+                # x = input("score with a completed")
                 present_policy = team[index]
                 team[index] = -5
+                task_list = copy.deepcopy(temp_task_list)
                 score_without_a = self.run_sim(team)
+                # print("score_without_a=", score_without_a)
+                # x = input("score without a completed")
                 diff_score = score_with_a - score_without_a
                 agent.update_score(diff_score, present_policy)
+                # print(agent.scores)
+                # x = input("enter")
 
     def test_func(self):
         print("testing function")
@@ -323,5 +348,5 @@ if __name__ == "__main__":
     t = threading.Thread(target=TA.test_func())
     t.daemon = True
     t.start()
-    Gridworld.start_world()
+    #Gridworld.start_world()
 
