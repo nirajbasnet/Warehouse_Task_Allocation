@@ -5,7 +5,7 @@ import copy
 from matplotlib import pyplot as plt
 
 # np.random.normal(mu,sigma,length of weights array)
-task_list = np.array([4, 1, 1, 2])
+task_list = np.array([7, 5, 6, 7])
 
 
 def update_tasklist(index):
@@ -27,7 +27,7 @@ class Agent:
         self.hidden_space = 16
         self.weights_ih = []  # weights from input to hidden layer
         self.weights_ho = []  # weights from hidden to output layer
-        self.k = 15  # no of policies per agent in population
+        self.k = 25  # no of policies per agent in population
         self.scores = [0 for i in range(self.k)]  # scores for k policies
         self.current_task = 0
         self.current_policy = 0
@@ -50,7 +50,7 @@ class Agent:
         # print(self.W_ho)
 
     def initialize_policies(self, k):
-        print("initializing weights for population of k policies")
+        # print("initializing weights for population of k policies")
         for i in range(k):
             self.weights_ih.append(np.random.randn(self.input_space,
                                                    self.hidden_space))  # (k*16*16) weight matrix from input to hidden layer
@@ -58,7 +58,7 @@ class Agent:
                                                    self.output_space))  # (k*16*4) weight matrix from hidden to output layer
 
     def select_task(self):
-        print("selecting task for agent")
+        # print("selecting task for agent")
         soft_max_prob = self.act(self.current_policy)  # running neural net on best policy
         best_task = np.argmax(soft_max_prob)  # best task given the softmax values for each type of item in gridworld
         count = 0
@@ -69,23 +69,22 @@ class Agent:
             soft_max_prob[best_task] = 0
             best_task = np.argmax(soft_max_prob)
 
-
         self.current_task = best_task
         update_tasklist(self.current_task)
 
     def get_time_steps(self, current_task):
-        print("computing time steps for current task")
+        # print("computing time steps for current task")
         t_agent_item = abs(self.grid_world.items_pos[current_task][0] - self.pos[0]) + abs(
             self.grid_world.items_pos[current_task][1] - self.pos[1])
         # self.pos=copy.deepcopy(self.grid_world.items_pos[current_task])
         # t_item_bin = abs(self.grid_world.bins_pos[current_task][0]-self.pos[0]) + abs(self.grid_world.bins_pos[current_task][0] - self.pos[0])
-        t_item_bin = abs(self.grid_world.bins_pos[current_task][0] - self.grid_world.items_pos[current_task][0]) + abs(
-            self.grid_world.bins_pos[current_task][1] - self.grid_world.items_pos[current_task][1])
+        t_item_bin = abs(self.grid_world.bins_pos[0][0] - self.grid_world.items_pos[current_task][0]) + abs(
+            self.grid_world.bins_pos[0][1] - self.grid_world.items_pos[current_task][1])
         total_timesteps = t_agent_item + t_item_bin
         return total_timesteps
 
     def update_input(self):
-        print("updating input to neural net")
+        # print("updating input to neural net")
         self.input_nn = []
         self.input_nn = [self.pos[0], self.pos[1]]
         for i in task_list:
@@ -97,13 +96,12 @@ class Agent:
             self.input_nn.append(grid_world.bins_pos[i][0])  # selecting first bin only
             self.input_nn.append(grid_world.bins_pos[i][1])
 
-
     def update_states(self, current_task):
-        print("updating states of agent")
+        # print("updating states of agent")
         self.pos = copy.deepcopy(self.grid_world.bins_pos[current_task])
 
     def act(self, policy_idx):
-        print('running neural network to get task selection output for particular policy')
+        # print('running neural network to get task selection output for particular policy')
         self.update_input()
         # dot product of input and weights matrix for input-hidden layer
         ih_result = np.dot(self.input_nn, self.weights_ih[policy_idx])
@@ -124,8 +122,8 @@ class Agent:
         return e_s / e_s.sum()
 
     def mutate_policies(self):
-        print("mutating k policies to find 2k policies")
-        mean, std_dev = 0, 0.1
+        # print("mutating k policies to find 2k policies")
+        mean, std_dev = 0, 0.2
         for i in range(self.k):
             noise_ih = np.random.normal(mean, std_dev, size=np.shape(self.weights_ih[i]))
             noise_ho = np.random.normal(mean, std_dev, size=np.shape(self.weights_ho[i]))
@@ -134,27 +132,29 @@ class Agent:
             self.weights_ih.append(new_weights_ih)
             self.weights_ho.append(new_weights_ho)
             self.scores.append(0)
+        self.k = self.k * 2
 
     def get_random_policy(self):
-        print("getting random policy from agent policies")
+        # print("getting random policy from agent policies")
         self.current_policy = np.random.randint(0, self.k)
         return self.current_policy
 
     def get_best_policy(self):
-        print("getting best policy from agent policies")
+        # print("getting best policy from agent policies")
         self.current_policy = np.argmax(np.array(self.scores))
         return self.current_policy
 
     def update_score(self, score, policy_index):
-        print("updating score of agent policies")
+        # print("updating score of agent policies")
         self.scores[policy_index] += self.alpha * (score - self.scores[policy_index])
 
     def reset_scores(self):
-        print("resetting scores")
+        # print("resetting scores")
         self.scores = [0 for i in range(self.k)]
 
     def get_next_gen(self):
-        print("selecting best k from 2k policies")
+        # print("selecting best k from 2k policies")
+        self.k = int(self.k/2)
         for i in range(self.k):
             low_value_idx = int(np.argmin(self.scores))
             self.weights_ih.pop(low_value_idx)
@@ -171,30 +171,30 @@ class CCEA:
         self.agents = []
         self.iteration_count = 100
         self.generations = 500
-        self.hof_generations=20
+        self.hof_generations = 100
 
     def get_random_tasklist(self):
-        print("getting random task list for simulations")
+        # print("getting random task list for simulations")
         rand_list = []
         for i in range(len(task_list)):
-            rand_list.append(np.random.randint(0, 5))
+            rand_list.append(np.random.randint(3, 7))
         r_list = np.array(rand_list)
         if r_list.sum() == 0:
             self.get_random_tasklist()
         return np.array(rand_list)
 
     def init_all_agent_populations(self, size):
-        print("initializing all agent populations")
+        # print("initializing all agent populations")
         self.agents = [Agent(self.gridWorld, i) for i in range(size)]
 
     def init_team(self):
-        print("selecting random policy from each population and forming a team")
+        # print("selecting random policy from each population and forming a team")
         for agent in self.agents:
             self.team.append(agent.get_random_policy())
 
     def run_sim(self, team):
-        print("running team simulation")
-        # reset environment
+        # print("running team simulation")
+        self.gridWorld.reset()
         total_sim_time = 0
         absent = None
         T_all = np.array([0 for i in range(len(self.agents))])
@@ -215,7 +215,6 @@ class CCEA:
             min_time_idx = np.argmin(T_all)
             count = 0
             while T_all[min_time_idx] == 0 and (is_empty_tasklist() or exclude_agent):
-                # print("task list empty")
                 count += 1
                 if count == len(T_all):
                     break
@@ -226,62 +225,55 @@ class CCEA:
                         smallest_value = T_all[i]
                         smallest_index = i
                 min_time_idx = smallest_index
-            # print("min_time ",min_time_idx," ",T_all[min_time_idx])
             total_sim_time += T_all[min_time_idx]
             agent_same_time = []
             for index, agent in enumerate(self.agents):
                 if index == min_time_idx and index != absent:
                     agent.update_states(agent.current_task)
-                    # print("agent ",index," pos= ",agent.pos)
                     if agent.select_task() != -5:
                         # print("agent ", index, " current task=", agent.current_task)
                         agent_same_time.append(index)
-            # T_all = T_all - T_all[min_time_idx]
             minimum_time = T_all[min_time_idx]
             for k in range(len(T_all)):
                 if T_all[k] != 0:
                     T_all[k] = T_all[k] - minimum_time
-                    # print(T_all[k])
-            # print("subract ",T_all)
             for i in agent_same_time:
                 T_all[i] += self.agents[i].get_time_steps(self.agents[i].current_task)
-            # print(task_list,T_all)
-            # x=input("loop")
 
-        return 200-total_sim_time
+        return -total_sim_time
 
     def run_evolutions(self):
-        print("running evolution")
+        # print("running evolution")
+        csv = open("results.csv", "w")
         analysis = []
-        gen=[]
+        gen = []
         self.init_all_agent_populations(self.N_pop)  # size of the population
         for i in range(self.generations):
-            gen.append(i)
+            print("gen ", i+1)
             for agent in self.agents:
                 agent.mutate_policies()
             self.stage1()
             self.build_hof_diff()
             global_reward = self.evolution()
             # print("global reward",global_reward)
-            # x = input("score")
-            analysis.append(global_reward)
+            if i % 5 == 0:
+                analysis.append(global_reward)
+                gen.append(i)
+                row = str(i) + "," + str(global_reward) + "\n"
+                csv.write(row)
             self.gridWorld.reset()
             for agent in self.agents:
                 agent.reset_scores()
         print(analysis)
-        plt.plot(gen,analysis)
+        plt.plot(gen, analysis)
         plt.show()
 
-
-        # computation += stage1()
-        # computation1 +=build_hof_diff()
-        # global reward = evolution()
-        # analysis.append((computation,global_reward))
-        # reset scores
-
     def evolution(self):
-        print("evolving each population")
+        global task_list
+        # print("evolving each population")
         best_team = []
+        # task_list = self.get_random_tasklist()
+        task_list = np.array([7,5,6,7])
         for agent in self.agents:
             agent.get_next_gen()
             best_policy = agent.get_best_policy()
@@ -291,26 +283,23 @@ class CCEA:
 
     def stage1(self):
         global task_list
-        print("executing stage 1")
+        # print("executing stage 1")
         for i in range(self.iteration_count):
-            task_list = self.get_random_tasklist()
+            # task_list = self.get_random_tasklist()
+            task_list = np.array([7, 5, 6, 7])
             team = []
             for agent in self.agents:
                 team.append(agent.get_random_policy())
             score = self.run_sim(team)
-            # print("score stage1: ", score)
-            # x = input("sim completed")
             for agent in self.agents:
                 agent.update_score(score, agent.current_policy)
-                # print(agent.scores)
-        # x = input("stage 1 finish")
 
     def build_hof_diff(self):
         global task_list
         # print("building hof_diff model")
         for i in range(self.hof_generations):
-            # print("hof_dof running generation ", i)
-            task_list = self.get_random_tasklist()
+            # task_list = self.get_random_tasklist()
+            task_list = np.array([7, 5, 6, 7])
             temp_task_list = copy.deepcopy(task_list)
             for index, agent in enumerate(self.agents):
                 team = []
@@ -321,32 +310,26 @@ class CCEA:
                         best_policy = other_agent.get_best_policy()
                         team.append(best_policy)
                 score_with_a = self.run_sim(team)
-                # print("score_with_a=",score_with_a)
-                # x = input("score with a completed")
                 present_policy = team[index]
                 team[index] = -5
                 task_list = copy.deepcopy(temp_task_list)
                 score_without_a = self.run_sim(team)
-                # print("score_without_a=", score_without_a)
-                # x = input("score without a completed")
                 diff_score = score_with_a - score_without_a
                 agent.update_score(diff_score, present_policy)
                 # print(agent.scores)
-                # x = input("enter")
 
     def test_func(self):
         print("testing function")
+
         self.run_evolutions()
 
 
-
 if __name__ == "__main__":
-    grid_world = Gridworld.World(Gridworld.root, 10, 10)
+    grid_world = Gridworld.World(Gridworld.root, 16, 16)
     grid_world.initialize_world()
     TA = CCEA(grid_world)
 
     t = threading.Thread(target=TA.test_func())
     t.daemon = True
     t.start()
-    #Gridworld.start_world()
-
+    # Gridworld.start_world()
